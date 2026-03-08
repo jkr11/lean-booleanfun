@@ -636,6 +636,400 @@ lemma fourier_convolution : 𝓕 (f ⋆ g) = (𝓕 f) * (𝓕 g) := by
   ring_nf
   rw [two_eq_zero, mul_zero, add_zero]
 
+noncomputable
+def Ei (i : Fin n) : BooleanFunc n →ₗ[ℝ] BooleanFunc n where
+  toFun f := fun x => (f (setAt i 0 x) + f (setAt i 1 x)) / 2
+  map_add' f g := by
+    ext x; simp; ring
+  map_smul' c f := by
+    ext x; simp; ring
+
+
+instance : Sub (BooleanFunc n) := Pi.instSub
+instance : Pow (BooleanFunc n) ℕ := Pi.instPow
+
+lemma BooleanFunc.congr {f : BooleanFunc n} {x y : Fin n → Fin 2} (h : x = y) :
+    f x = f y := by
+  rw [h]
+
+theorem decomposition (i : Fin n) (f : BooleanFunc n) (x : Fin n → Fin 2) :
+    f x = ((-1) ^ (x i).val) * ((dderiv i f) x)  + ((Ei i f) x) := by
+  simp [dderiv, Ei]
+  match h: x i with
+  | 0 =>
+      simp
+      field_simp
+      apply f.congr;
+      funext j
+      unfold setAt
+      split_ifs with hj
+      . rw [← hj] at h
+        exact h
+      simp
+  | 1 =>
+      simp
+      field_simp
+      ring_nf
+      field_simp
+      apply f.congr;
+      funext j
+      unfold setAt
+      split_ifs with hj
+      . rw [← hj] at h
+        exact h
+      simp
+
+theorem decomposition' (i : Fin n) (f : BooleanFunc n) :
+  f = fun x => (((-1) ^ (x i).val) * (dderiv i f x) + (Ei i f x)) := by
+  --simp [dderiv, Ei]
+  funext x
+  exact decomposition i f x
+
+def DependsOnlyOn (f : BooleanFunc n) (J : Finset (Fin n)) : Prop :=
+  ∀ x y : Fin n → Fin 2, (∀ i ∈ J, x i = y i) → f x = f y
+
+def Independent (f g : BooleanFunc n) : Prop :=
+  ∃ J₁ J₂ : Finset (Fin n), DependsOnlyOn f J₁ ∧ DependsOnlyOn g J₂ ∧ Disjoint J₁ J₂
+
+lemma expectation_mul_of_independent (f g : BooleanFunc n)
+    (S T : Finset (Fin n)) (hS : DependsOnlyOn f S) (hT : DependsOnlyOn g T)
+    (h_disjoint : Disjoint S T) :
+    𝐄 (f * g) = 𝐄 f * 𝐄 g := by
+  unfold expectation
+  simp
+  field_simp
+  ring_nf
+  admit
+
+def degree (f : BooleanFunc n) : ℕ :=
+  let f_hat := fourierTransform f
+  let support_sets := Finset.univ.filter (fun S ↦ f_hat S ≠ 0)
+  support_sets.sup Finset.card
+
+
+
+def restrict {n : ℕ} (g : BooleanFunc (n + 1)) : BooleanFunc n :=
+  fun x ↦ g (Fin.append x (fun _ ↦ 0))
+
+lemma expectation_restrict {n : ℕ} (g : BooleanFunc (n + 1))
+    (h : DependsOnlyOn g (Finset.univ.erase (Fin.last n))) :
+    expectation g = expectation (restrict g) := by
+  unfold expectation;
+  have h_split : ∑ x : Fin (n + 1) → Fin 2, g x = ∑ x : Fin n → Fin 2, ∑ y : Fin 2, g (Fin.append x (fun _ => y)) := by
+    rw [ ← Finset.sum_product' ];
+    refine' Finset.sum_bij ( fun x _ => ( x ∘ Fin.castSucc, x ( Fin.last _ ) ) ) _ _ _ _ <;> simp +decide;
+    · exact fun a₁ a₂ h₁ h₂ => funext fun i => by cases i using Fin.lastCases <;> simpa [ * ] using congr_fun h₁ ‹_›;
+    · --exact fun a => ⟨ ⟨ Fin.snoc a 0, by ext i; simp +decide, by simp +decide ⟩, ⟨ Fin.snoc a 1, by ext i; simp +decide, by simp +decide ⟩ ⟩;
+      intro a b
+      use Fin.snoc a b
+      constructor
+      . ext i
+        simp
+      . simp
+    · intro a; congr; ext i; induction i using Fin.lastCases <;> simp +decide [ *, Fin.append ] ;
+      · simp +decide [ Fin.addCases ];
+      · simp +decide [ Fin.addCases ];
+  have h_eq : ∀ x : Fin n → Fin 2, ∀ y : Fin 2, g (Fin.append x (fun _ => y)) = g (Fin.append x (fun _ => 0)) := by
+    intro x y; apply h; intro i hi; simp_all +decide [ Fin.append ] ;
+    cases i using Fin.lastCases <;> simp_all +decide [ Fin.addCases ];
+  simp_all +decide [ pow_succ, div_mul_eq_div_div ];
+  rw [ ← Finset.mul_sum _ _ _ ] ; ring!;
+
+lemma DependsOnlyOn.mul {f g : BooleanFunc n} {S : Finset (Fin n)}
+    (hf : DependsOnlyOn f S) (hg : DependsOnlyOn g S) :
+    DependsOnlyOn (f * g) S := by
+  intro x y h; simp [hf x y h, hg x y h]
+
+lemma DependsOnlyOn.pow {f : BooleanFunc n} {S : Finset (Fin n)} (k : ℕ)
+    (hf : DependsOnlyOn f S) :
+    DependsOnlyOn (f ^ k) S := by
+  intro x y h; simp [hf x y h]
+
+lemma depends_chi_pow {xₙ : BooleanFunc (n+1)} (hx : xₙ = fun x ↦ (-1) ^ (x (Fin.last n)).val) (k : ℕ) : DependsOnlyOn (xₙ ^ k) {Fin.last n} := by
+  intro x y h
+  rw [hx]
+  simp_all
+
+lemma  dependsOnlyOn_d (f : BooleanFunc n) (i : Fin n) :
+    DependsOnlyOn (dderiv i f) (Finset.univ.erase i) := by
+  intro x y hxy
+  unfold dderiv
+  simp
+  field_simp
+  congr 1
+  · apply f.congr
+    unfold setAt
+    funext j
+    split_ifs with hj
+    . simp
+    . apply hxy; simp [hj]
+  . apply f.congr
+    unfold setAt
+    funext j
+    split_ifs with hj
+    . simp
+    . apply hxy; simp [hj]
+
+lemma dependsOnlyOn_e (f : BooleanFunc n) (i : Fin n) :
+    DependsOnlyOn (Ei i f) (Finset.univ.erase i) := by
+  intro x y hxy
+  unfold Ei
+  simp
+  field_simp
+  congr 1
+  · apply BooleanFunc.congr
+    funext j
+    unfold setAt
+    split_ifs with hj
+    · rfl
+    · apply hxy
+      simp [hj]
+  · apply BooleanFunc.congr
+    funext j
+    unfold setAt
+    split_ifs with hj
+    · rfl
+    · apply hxy
+      simp [hj]
+
+lemma depends_de_prod (a b : ℕ) {f d e : BooleanFunc (n+1)}
+   (hd : d = (dderiv (Fin.last n)) f) (he : e = (Ei (Fin.last n)) f) :
+    DependsOnlyOn (d^a * e^b) (Finset.univ.erase (Fin.last n)) := by
+  apply DependsOnlyOn.mul
+  · apply DependsOnlyOn.pow
+    rw [hd]
+    exact dependsOnlyOn_d f (Fin.last n)
+  · apply DependsOnlyOn.pow
+    rw [he]
+    exact dependsOnlyOn_e f (Fin.last n)
+
+
+lemma expectation_mul_const_func (c : ℝ) (g : BooleanFunc (n + 1)) :
+    𝐄 ((fun _ ↦ c) * g) = c * 𝐄 g := by
+  have h_smul : (fun x ↦ c) * g = c • g := by
+    ext x
+    simp [Pi.mul_apply, Pi.smul_apply]
+  rw [h_smul]
+  exact expectation.map_smul c g
+
+lemma chi_pow_reduce (xₙ : BooleanFunc (n + 1))
+    (hx : xₙ = fun x ↦ (-1) ^ (x (Fin.last n)).val) (k : ℕ) :
+    xₙ ^ k = if k % 2 = 0 then 1 else xₙ := by
+  ext x
+  rw [hx]
+  simp only [Pi.pow_apply, Pi.one_apply]
+  match kk : (x (Fin.last n)) with
+  | 0 =>
+    simp
+    split_ifs
+    . simp
+    . simp [kk]
+  | 1 =>
+    split_ifs
+    · simp; sorry -- use the powOne api stuff
+    · have h_odd : ∃ m, k = 2 * m + 1 := sorry
+      rcases h_odd with ⟨m, rfl⟩
+      rw [pow_succ]
+      simp
+      rw [kk]
+      simp
+
+
+lemma restrict_pow {n : ℕ} (f : BooleanFunc (n + 1)) (p : ℕ) :
+    restrict (f^p) = (restrict f)^p := by
+  ext x
+  simp [restrict, Pi.pow_apply]
+
+lemma degree_dderiv_le {n : ℕ} (f : BooleanFunc (n + 1)) (i : Fin (n + 1)) :
+    degree (dderiv i f) ≤ degree f - 1 := by
+  sorry
+
+lemma degree_restrict_le {n : ℕ} (g : BooleanFunc (n + 1)) :
+    degree (restrict g) ≤ degree g := by
+  sorry
+
+lemma norm_eq_sqrt_inner : ‖f‖ = √⟪f,f⟫ := by sorry -- add nonneg assumption
+
+lemma bonamis_lemma (f : BooleanFunc n) (k : ℕ) (h_def : degree f ≤ k) :
+  𝐄 (f ^ 4) ≤ 9^k * (𝐄 (f ^ 2)) ^ 2 := by
+  --revert f k
+  revert k f
+  induction n with
+  | zero => sorry
+  | succ n' ih =>
+    intro f k hk
+    rw [pow_succ, pow_succ, pow_succ, pow_one]
+    rw [decomposition' (Fin.last (n')) f]
+    set d := dderiv (Fin.last n') f with hd
+    set e := Ei (Fin.last n') f with he
+    set xₙ := fun x : Fin (n' + 1) → Fin 2 ↦ (-1 : ℝ) ^ (x (Fin.last n')).val with hχ
+    change 𝐄 ((xₙ * d + e) * (xₙ * d + e) * (xₙ * d + e) * (xₙ * d + e)) ≤
+       9 ^ k * 𝐄 ((xₙ * d + e) * (xₙ * d + e)) ^ 2
+    have h_expand : (xₙ * d + e) * (xₙ * d + e) * (xₙ * d + e) * (xₙ * d + e) =
+                xₙ^4 * d^4 + 4 * (xₙ^3 * (d^3 * e)) + 6 * (xₙ^2 * (d^2 * e^2)) + 4 * (xₙ * (d * e^3)) + e^4 := by
+      ring
+    have h_expand_2 : (xₙ * d + e) * (xₙ * d + e) = (xₙ ^ 2 * d ^ 2) + 2 * (xₙ * (d * e)) + e ^ 2 := by
+      ring
+    rw [h_expand, h_expand_2]
+    repeat rw [map_add]
+    have h_pow3 : xₙ ^ 3 = xₙ := by
+      ext x
+      rw [hχ]
+      match kk : (x (Fin.last n')) with
+      | 0 => norm_num; ring; rw [kk]; simp
+      | 1 => norm_num; ring; rw [kk]; simp; norm_num
+
+    have h_zero : 𝐄 xₙ = 0 := by
+      have hz : 𝐄 (χ {Fin.last n'}) = 0 :=
+        expectation_walsh_eq_zero (Finset.singleton_nonempty (Fin.last n'))
+      unfold walshCharacter at hz
+      simp_rw [Finset.prod_singleton] at hz
+      simp_rw [hχ]
+      exact hz
+    have h4 : (4 : BooleanFunc (n' + 1)) = (fun _ ↦ (4 : ℝ)) := rfl
+    have h6 : (6 : BooleanFunc (n' + 1)) = (fun _ ↦ (6 : ℝ)) := rfl
+    have h2 : (2 : BooleanFunc (n' + 1)) = (fun _ ↦ (2 : ℝ)) := rfl
+
+    have dep_d_4 : DependsOnlyOn (d ^ 4) (univ.erase (Fin.last n')) := by
+      rw [← mul_one (d^4)]; rw [← pow_zero e]; exact depends_de_prod 4 0 hd he
+
+    have dep_e_4 : DependsOnlyOn (e ^ 4) (univ.erase (Fin.last n')) := by
+      rw [← one_mul (e ^ 4)]; rw [← pow_zero d]; exact depends_de_prod 0 4 hd he
+
+    have dep_d_n (s : ℕ) : DependsOnlyOn  (d ^ s) (univ.erase (Fin.last n')) := by
+      rw [← mul_one (d ^ s)]; rw [← pow_zero e]; exact depends_de_prod s 0 hd he
+
+    repeat rw [h4]
+    rw [h6]
+    rw [h2]
+    repeat rw [expectation_mul_const_func 4 _]
+    rw [expectation_mul_const_func 6 _]
+    rw [expectation_mul_const_func 2 _]
+
+    simp
+    --repeat rw [← pow_one d]
+    rw [expectation_mul_of_independent (xₙ^4) _ {Fin.last n'} (Finset.univ.erase (Fin.last n')) (depends_chi_pow hχ 4) (dep_d_4)]
+    rw [expectation_mul_of_independent (xₙ^2) _ {Fin.last n'} (Finset.univ.erase (Fin.last n')) (depends_chi_pow hχ 2) (dep_d_n 2)]
+    rw [← pow_one e]
+    rw [expectation_mul_of_independent (xₙ^3) _ {Fin.last n'} (Finset.univ.erase (Fin.last n')) (depends_chi_pow hχ 3) (depends_de_prod 3 1 hd he)]
+    rw [expectation_mul_of_independent (xₙ) _ {Fin.last n'} (Finset.univ.erase (Fin.last n')) _ _]
+    rw [BooleanFun.chi_pow_reduce xₙ _ 3]; simp
+    rw [BooleanFun.chi_pow_reduce xₙ _ 4]; simp
+    rw [BooleanFun.chi_pow_reduce xₙ _ 2]; simp
+
+
+
+    simp_rw [h_zero]; simp
+    rotate_left
+    . rfl
+    . rfl
+    . rfl
+    . simp
+    . unfold DependsOnlyOn; simp [xₙ]; sorry
+    . rw [← pow_one d]; rw [pow_one e]; exact depends_de_prod 1 3 hd he
+    . simp
+    . simp
+    . simp
+    rw [expectation_mul_of_independent (xₙ) _ {Fin.last n'} (Finset.univ.erase (Fin.last n')) _ _]
+    rotate_left
+    . simp
+    . unfold DependsOnlyOn; simp; unfold xₙ; intro x y; intro h; rw [h] -- Depends on last
+    . rw [← pow_one d, ← pow_one e]; exact depends_de_prod 1 1 hd he
+    simp_rw [h_zero]
+    simp
+    rw [expectation_restrict (d^4) _]
+    rotate_left
+    . sorry
+    rw [restrict_pow]
+    have ihd := ih (restrict d)
+    repeat rw [← restrict_pow] at ihd
+    rw [← expectation_restrict (d^4) _] at ihd
+    rw [← expectation_restrict (d^2) _] at ihd
+    have h_deg : degree (restrict d) ≤ k - 1 := by
+      sorry
+    have hbd := ihd (k := k - 1) h_deg
+    rw [← restrict_pow]
+    rw [← expectation_restrict (d^4) _]
+    rotate_left
+    . sorry
+    . sorry
+    . sorry
+    have cs : 𝐄 (d^2 * e^2) ≤ (𝐄 (d^4))^(1/2) * (𝐄 (e^4))^(1/2) := by
+      rw [← inner_eq_expectation]
+      have h_pos : 0 ≤ ⟪d^2, e^2⟫ := by
+        rw [inner_eq_expectation]
+        have : d^2 * e^2 = ((e * d) * (e * d)) := by ring
+        rw [this]
+        apply expectation_prod_self_nonneg
+      rw [← abs_of_nonneg h_pos]
+      calc
+          _ ≤ ‖d^2‖ * ‖e^2‖ := cauchy_schwarz
+          _ = sqrt (inner (d ^ 2) (d ^ 2)) * sqrt (inner (e ^ 2) (e ^ 2)) := by
+            rw [norm_eq_sqrt_inner (f := d^2)]
+            rw [norm_eq_sqrt_inner (f := e^2)]
+          _ = (𝐄 (d ^ 4)) ^ (1/2) * (𝐄 (e ^ 4)) ^ (1/2) := by
+            simp_rw [inner_eq_expectation]; rw [sqrt_eq_rpow]; rw [sqrt_eq_rpow]; sorry
+    rw [expectation_restrict (e^4) _]
+    rotate_left
+    . sorry
+    rw [restrict_pow]
+    have ihe := ih (restrict e)
+    repeat rw [← restrict_pow] at ihe
+    rw [← expectation_restrict (e^4) _] at ihe
+    rw [← expectation_restrict (e^2) _] at ihe
+    have e_deg : degree (restrict (e)) ≤ k := by
+      sorry
+    have hbe := ihe k e_deg
+    rw [← restrict_pow]
+    rw [← expectation_restrict (e^4) _]
+    rotate_left
+    . sorry
+    . sorry
+    . sorry
+    cases k with
+    | zero =>
+      sorry -- zero means constant func, need to get this somehow. Remember 0 - 1 = 0 in Nat
+    | succ k' =>
+      have h_mid : 6 * (9^k' * 𝐄 (d^2)^2 * 9^(k'+1) * 𝐄 (e^2)^2)^(1/2 : ℝ) = 18 * 9^k' * 𝐄 (d^2) * 𝐄 (e^2) := by
+        simp; ring; rw [← Real.sqrt_eq_rpow]; rw [Real.sqrt_mul, Real.sqrt_mul, Real.sqrt_mul]
+        rw [Real.sqrt_sq]; rw [Real.sqrt_sq]; ring_nf
+        simp_rw [sq]
+        rw [pow_mul]; rw [Real.sqrt_sq];
+        have nine : (9 : ℝ) = (3 : ℝ) ^ 2 := by norm_num
+        nth_rw 2 [nine]; rw [Real.sqrt_sq];
+        ring
+        any_goals (
+          positivity
+        )
+        . sorry
+        . sorry
+      calc
+        𝐄 (d^4) + 6 * 𝐄 (d^2 * e^2) + 𝐄 (e^4)
+          ≤ 9^(k') * 𝐄 (d^2) ^ 2 + 6 * (𝐄 (d^4) ^(1/2) * 𝐄 (e^4)^(1/2)) + 9^(k'+1) * 𝐄 (e^2)^2 := by
+          gcongr;
+          . sorry
+        _ ≤ 9^(k') * 𝐄 (d^2)^2 + 6 * ((9^(k') * 𝐄 (d^2)^2) * 9^(k'+1) * 𝐄 (e^2)^2)^(1/2 : ℝ) + 9^(k'+1) * 𝐄 (e^2)^2 := by
+            gcongr
+            sorry
+        _ = ((9:ℝ)^(k') * 𝐄 (d^2)^2) + (2 * 9^(k'+1) * 𝐄 (d^2) * 𝐄 (e^2)) + (9^(k'+1) * 𝐄 (e^2)^2) := by
+            erw [h_mid]; field_simp;
+            apply Or.inl
+            apply Or.inl
+            ring
+        _ = 9^(k') * 𝐄 (d^2)^2 + 2 * 9^(k'+1) * 𝐄 (d^2) * 𝐄 (e^2) + 9^(k'+1) * 𝐄 (e^2)^2 := by
+            ring_nf;
+        _ ≤ 9^(k' + 1) * 𝐄 (d^2)^2 + 2 * 9^(k'+1) * 𝐄 (d^2) * 𝐄 (e^2) + 9^(k'+1) * 𝐄 (e^2)^2 := by
+            ring; field_simp;
+            have h_pos : 0 ≤ 𝐄 (d ^ 2) ^ 2 := by
+              positivity
+            apply le_mul_of_one_le_right
+            · positivity -- Proves the left part is ≥ 0
+            · norm_num   -- Proves 1 ≤ 9
+        _ ≤ 9^(k' + 1) * (𝐄 (d^2) + 𝐄 (e^2))^2 := by
+            ring; sorry
+
+
+
 end Convolution
 
 end
