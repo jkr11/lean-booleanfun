@@ -899,6 +899,9 @@ lemma bonamis_lemma (f : BooleanFunc n) (k : ℕ) (h_def : degree f ≤ k) :
     have dep_d_n (s : ℕ) : DependsOnlyOn  (d ^ s) (univ.erase (Fin.last n')) := by
       rw [← mul_one (d ^ s)]; rw [← pow_zero e]; exact depends_de_prod s 0 hd he
 
+    have dep_e_n (s : ℕ) : DependsOnlyOn (e ^ s) (univ.erase (Fin.last n')) := by
+      rw [← one_mul (e ^ s)]; rw [← pow_zero d]; exact depends_de_prod 0 s hd he
+
     repeat rw [h4]
     rw [h6]
     rw [h2]
@@ -937,23 +940,17 @@ lemma bonamis_lemma (f : BooleanFunc n) (k : ℕ) (h_def : degree f ≤ k) :
     . rw [← pow_one d, ← pow_one e]; exact depends_de_prod 1 1 hd he
     simp_rw [h_zero]
     simp
-    rw [expectation_restrict (d^4) _]
-    rotate_left
-    . sorry
+    rw [expectation_restrict (d^4) dep_d_4]
     rw [restrict_pow]
     have ihd := ih (restrict d)
     repeat rw [← restrict_pow] at ihd
-    rw [← expectation_restrict (d^4) _] at ihd
-    rw [← expectation_restrict (d^2) _] at ihd
+    rw [← expectation_restrict (d^4) (dep_d_n 4)] at ihd
+    rw [← expectation_restrict (d^2) (dep_d_n 2)] at ihd
     have h_deg : degree (restrict d) ≤ k - 1 := by
       sorry
     have hbd := ihd (k := k - 1) h_deg
     rw [← restrict_pow]
-    rw [← expectation_restrict (d^4) _]
-    rotate_left
-    . sorry
-    . sorry
-    . sorry
+    rw [← expectation_restrict (d^4) dep_d_4]
     have cs : 𝐄 (d^2 * e^2) ≤ (𝐄 (d^4))^(1/2) * (𝐄 (e^4))^(1/2) := by
       rw [← inner_eq_expectation]
       have h_pos : 0 ≤ ⟪d^2, e^2⟫ := by
@@ -969,23 +966,19 @@ lemma bonamis_lemma (f : BooleanFunc n) (k : ℕ) (h_def : degree f ≤ k) :
             rw [norm_eq_sqrt_inner (f := e^2)]
           _ = (𝐄 (d ^ 4)) ^ (1/2) * (𝐄 (e ^ 4)) ^ (1/2) := by
             simp_rw [inner_eq_expectation]; rw [sqrt_eq_rpow]; rw [sqrt_eq_rpow]; sorry
-    rw [expectation_restrict (e^4) _]
-    rotate_left
-    . sorry
+    rw [expectation_restrict (e^4) dep_e_4]
     rw [restrict_pow]
     have ihe := ih (restrict e)
     repeat rw [← restrict_pow] at ihe
-    rw [← expectation_restrict (e^4) _] at ihe
-    rw [← expectation_restrict (e^2) _] at ihe
+    rw [← expectation_restrict (e^4) (dep_e_n 4)] at ihe
+    rw [← expectation_restrict (e^2) (dep_e_n 2)] at ihe
     have e_deg : degree (restrict (e)) ≤ k := by
       sorry
     have hbe := ihe k e_deg
     rw [← restrict_pow]
-    rw [← expectation_restrict (e^4) _]
-    rotate_left
-    . sorry
-    . sorry
-    . sorry
+    rw [← expectation_restrict (e^4) dep_e_4]
+    simp at hbe
+    simp at hbd
     cases k with
     | zero =>
       sorry -- zero means constant func, need to get this somehow. Remember 0 - 1 = 0 in Nat
@@ -1001,15 +994,16 @@ lemma bonamis_lemma (f : BooleanFunc n) (k : ℕ) (h_def : degree f ≤ k) :
         any_goals (
           positivity
         )
-        . sorry
-        . sorry
+        . rw [sq]; exact expectation_prod_self_nonneg
+        . rw [sq]; exact expectation_prod_self_nonneg
       calc
         𝐄 (d^4) + 6 * 𝐄 (d^2 * e^2) + 𝐄 (e^4)
-          ≤ 9^(k') * 𝐄 (d^2) ^ 2 + 6 * (𝐄 (d^4) ^(1/2) * 𝐄 (e^4)^(1/2)) + 9^(k'+1) * 𝐄 (e^2)^2 := by
+          ≤ 9^(k') * 𝐄 (d^2) ^ 2 + 6 * (𝐄 (d^4) ^(1/2 : ℝ) * 𝐄 (e^4)^(1/2 : ℝ)) + 9^(k'+1) * 𝐄 (e^2)^2 := by
           gcongr;
-          . sorry
+          . exact hbd
         _ ≤ 9^(k') * 𝐄 (d^2)^2 + 6 * ((9^(k') * 𝐄 (d^2)^2) * 9^(k'+1) * 𝐄 (e^2)^2)^(1/2 : ℝ) + 9^(k'+1) * 𝐄 (e^2)^2 := by
             gcongr
+            ring_nf
             sorry
         _ = ((9:ℝ)^(k') * 𝐄 (d^2)^2) + (2 * 9^(k'+1) * 𝐄 (d^2) * 𝐄 (e^2)) + (9^(k'+1) * 𝐄 (e^2)^2) := by
             erw [h_mid]; field_simp;
