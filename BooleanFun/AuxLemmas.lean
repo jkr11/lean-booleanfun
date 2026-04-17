@@ -5,7 +5,7 @@ Authors: Joris Roos
 -/
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Finprod
-import Mathlib.Data.Real.Irrational
+import Mathlib.RingTheory.Real.Irrational
 
 -- set_option profiler true
 

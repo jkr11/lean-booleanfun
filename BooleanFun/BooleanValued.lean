@@ -168,7 +168,6 @@ lemma eq_character_of_eq_sum_degree_one (hn : n>0) (hf : ∀ x, f x = ∑ i, �
         · unfold Set.MapsTo
           intro i _
           simp
-          apply succAbove_ne i₀
         · intro i hi0 hi1
           simp at hi1
           simp at hi0

@@ -8,7 +8,7 @@ section ToAlgebraOrderBigOperatorsGroupFinset
 
 section OrderedCommMonoid
 
-variable [OrderedCommMonoid N]
+variable [CommMonoid α] [PartialOrder α] [IsOrderedMonoid α]
 
 variable {s : Finset ι} {f : ι → N}
 
